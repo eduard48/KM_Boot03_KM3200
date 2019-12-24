@@ -1,0 +1,886 @@
+
+km_boot_v03.elf:     file format elf32-avr
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         000003b0  00003c00  00003c00  00000074  2**0
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .trampolines  00000000  00003fb0  00003fb0  00000424  2**1
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  2 .bss          00000080  00800100  00003fb0  00000424  2**0
+                  ALLOC
+  3 .stab         00000c60  00000000  00000000  00000424  2**2
+                  CONTENTS, READONLY, DEBUGGING
+  4 .stabstr      00000ff5  00000000  00000000  00001084  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  5 .comment      00000030  00000000  00000000  00002079  2**0
+                  CONTENTS, READONLY
+
+Disassembly of section .text:
+
+00003c00 <__ctors_end>:
+    3c00:	11 24       	eor	r1, r1
+    3c02:	1f be       	out	0x3f, r1	; 63
+    3c04:	cf ef       	ldi	r28, 0xFF	; 255
+    3c06:	d4 e0       	ldi	r29, 0x04	; 4
+    3c08:	de bf       	out	0x3e, r29	; 62
+    3c0a:	cd bf       	out	0x3d, r28	; 61
+
+00003c0c <__do_clear_bss>:
+    3c0c:	21 e0       	ldi	r18, 0x01	; 1
+    3c0e:	a0 e0       	ldi	r26, 0x00	; 0
+    3c10:	b1 e0       	ldi	r27, 0x01	; 1
+    3c12:	01 c0       	rjmp	.+2      	; 0x3c16 <.do_clear_bss_start>
+
+00003c14 <.do_clear_bss_loop>:
+    3c14:	1d 92       	st	X+, r1
+
+00003c16 <.do_clear_bss_start>:
+    3c16:	a0 38       	cpi	r26, 0x80	; 128
+    3c18:	b2 07       	cpc	r27, r18
+    3c1a:	e1 f7       	brne	.-8      	; 0x3c14 <.do_clear_bss_loop>
+    3c1c:	0e 94 43 1e 	call	0x3c86	; 0x3c86 <main>
+    3c20:	0c 94 d6 1f 	jmp	0x3fac	; 0x3fac <_exit>
+
+00003c24 <__bad_interrupt>:
+    3c24:	0c 94 42 1e 	jmp	0x3c84	; 0x3c84 <__vector_default>
+
+00003c28 <recvchar>:
+	RSPORT &= ~(1<<RSPNUM);							// 0 на выводе TXE
+}
+
+static uint8_t recvchar(void)
+{
+	while (!(UART_STATUS & (1<<UART_RXREADY))); 	// Ждать символ
+    3c28:	80 91 c0 00 	lds	r24, 0x00C0
+    3c2c:	87 ff       	sbrs	r24, 7
+    3c2e:	fc cf       	rjmp	.-8      	; 0x3c28 <recvchar>
+	return UART_DATA;								// Вернуться с принятым символом
+    3c30:	80 91 c6 00 	lds	r24, 0x00C6
+}
+    3c34:	08 95       	ret
+
+00003c36 <sendchar>:
+	void __vector_default(void) { ; }
+#endif
+
+static void sendchar(uint8_t data)
+{
+	RSPORT |= (1<<RSPNUM);							// 1 на выводе TXE
+    3c36:	5a 9a       	sbi	0x0b, 2	; 11
+	UART_DATA = data;								// передать байт в буфер
+    3c38:	80 93 c6 00 	sts	0x00C6, r24
+	while (!(UART_STATUS & (1<<UART_TXREADY))); 	// Ждать конца передачи
+    3c3c:	80 91 c0 00 	lds	r24, 0x00C0
+    3c40:	85 ff       	sbrs	r24, 5
+    3c42:	fc cf       	rjmp	.-8      	; 0x3c3c <sendchar+0x6>
+	UART_STATUS |= (1<<UART_TXREADY);				// Сбросить флаг т.к. нет прерываний
+    3c44:	80 91 c0 00 	lds	r24, 0x00C0
+    3c48:	80 62       	ori	r24, 0x20	; 32
+    3c4a:	80 93 c0 00 	sts	0x00C0, r24
+	#else
+		//round up by default
+		__ticks_dc = (uint32_t)(ceil(fabs(__tmp)));
+	#endif
+
+	__builtin_avr_delay_cycles(__ticks_dc);
+    3c4e:	83 e3       	ldi	r24, 0x33	; 51
+    3c50:	97 e0       	ldi	r25, 0x07	; 7
+    3c52:	01 97       	sbiw	r24, 0x01	; 1
+    3c54:	f1 f7       	brne	.-4      	; 0x3c52 <sendchar+0x1c>
+	_delay_us(500);									// Задержка для передачи последнего байта (по другому не работает!)
+	RSPORT &= ~(1<<RSPNUM);							// 0 на выводе TXE
+    3c56:	5a 98       	cbi	0x0b, 2	; 11
+    3c58:	08 95       	ret
+
+00003c5a <send_boot>:
+}
+
+
+static void send_boot(void)
+{
+	sendchar('A');
+    3c5a:	81 e4       	ldi	r24, 0x41	; 65
+    3c5c:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	sendchar('V');
+    3c60:	86 e5       	ldi	r24, 0x56	; 86
+    3c62:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	sendchar('R');
+    3c66:	82 e5       	ldi	r24, 0x52	; 82
+    3c68:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	sendchar('B');
+    3c6c:	82 e4       	ldi	r24, 0x42	; 66
+    3c6e:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	sendchar('O');
+    3c72:	8f e4       	ldi	r24, 0x4F	; 79
+    3c74:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	sendchar('O');
+    3c78:	8f e4       	ldi	r24, 0x4F	; 79
+    3c7a:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	sendchar('T');
+    3c7e:	84 e5       	ldi	r24, 0x54	; 84
+    3c80:	0c 94 1b 1e 	jmp	0x3c36	; 0x3c36 <sendchar>
+
+00003c84 <__vector_default>:
+
+#if defined(BOOTLOADERHASNOVECTORS)
+	#warning "This Bootloader does not link interrupt vectors - see makefile"
+	/* make the linker happy - it wants to see __vector_default */
+	// void __vector_default(void) { ; }
+	void __vector_default(void) { ; }
+    3c84:	08 95       	ret
+
+00003c86 <main>:
+}
+
+static void (*jump_to_app)(void) = 0x0000;
+
+int main(void)
+{
+    3c86:	cf 93       	push	r28
+    3c88:	df 93       	push	r29
+    3c8a:	1f 92       	push	r1
+    3c8c:	cd b7       	in	r28, 0x3d	; 61
+    3c8e:	de b7       	in	r29, 0x3e	; 62
+	uint16_t address = 0;
+	uint8_t device = 0, val;
+
+
+	BIPORT |= (1<<BIPNUM);	// светодиод включить - LED ON (1)
+    3c90:	28 9a       	sbi	0x05, 0	; 5
+	BIDDR  |= (1<<BIPNUM);
+    3c92:	20 9a       	sbi	0x04, 0	; 4
+
+#define WDT_OFF_SPECIAL
+
+static inline void bootloader_wdt_off(void)
+{
+	cli();
+    3c94:	f8 94       	cli
+	wdt_reset();
+    3c96:	a8 95       	wdr
+	/* Clear WDRF in MCUSR */
+	MCUSR &= ~(1<<WDRF);
+    3c98:	84 b7       	in	r24, 0x34	; 52
+    3c9a:	87 7f       	andi	r24, 0xF7	; 247
+    3c9c:	84 bf       	out	0x34, r24	; 52
+	/* Write logical one to WDCE and WDE */
+	/* Keep old prescaler setting to prevent unintentional time-out */
+	WDTCSR |= (1<<WDCE) | (1<<WDE);
+    3c9e:	80 91 60 00 	lds	r24, 0x0060
+    3ca2:	88 61       	ori	r24, 0x18	; 24
+    3ca4:	80 93 60 00 	sts	0x0060, r24
+	/* Turn off WDT */
+	WDTCSR = 0x00;
+    3ca8:	10 92 60 00 	sts	0x0060, r1
+#ifdef START_SIMPLE
+	BLDDR  &= ~(1<<BLPNUM);	// Установить вывод кнопки как вход (если загрузчик запускается от джампера)
+	BLPORT |= (1<<BLPNUM);		// Подтянуть вход к +
+#endif
+	// Настроить вывод управления TXE для RS485
+	RSPORT &= ~(1<<RSPNUM); 	// на выходе установить 0 (TXE - не активно)
+    3cac:	5a 98       	cbi	0x0b, 2	; 11
+	RSDDR |= (1<<RSPNUM);		// вывод как выход	
+    3cae:	52 9a       	sbi	0x0a, 2	; 10
+	// Установить скорость порта UART
+	UART_BAUD_HIGH = (UART_CALC_BAUDRATE(BAUDRATE)>>8) & 0xFF;
+    3cb0:	10 92 c5 00 	sts	0x00C5, r1
+	UART_BAUD_LOW = (UART_CALC_BAUDRATE(BAUDRATE) & 0xFF);
+    3cb4:	8f e2       	ldi	r24, 0x2F	; 47
+    3cb6:	80 93 c4 00 	sts	0x00C4, r24
+
+	UART_CTRL = UART_CTRL_DATA;		// Включить RX, TX
+    3cba:	88 e1       	ldi	r24, 0x18	; 24
+    3cbc:	80 93 c1 00 	sts	0x00C1, r24
+	UART_CTRL2 = UART_CTRL2_DATA;	// настроить параметры обмена 8,n,1
+    3cc0:	86 e0       	ldi	r24, 0x06	; 6
+    3cc2:	80 93 c2 00 	sts	0x00C2, r24
+    3cc6:	e1 2c       	mov	r14, r1
+    3cc8:	f1 2c       	mov	r15, r1
+			BLPORT &= ~(1<<BLPNUM);	// установить все по умолчанию
+
+			BIPORT &= ~(1<<BIPNUM);	// Выключить светодиод и установить вывод по умолчанию
+			BIDDR  &= ~(1<<BIPNUM);
+
+			jump_to_app();			// Перейти в секцию приложения
+    3cca:	00 e0       	ldi	r16, 0x00	; 0
+    3ccc:	10 e0       	ldi	r17, 0x00	; 0
+#elif defined(START_WAIT)	// Если работа по времени!!!!!!!!!!!!!!!!!!!!!! (мой случай)
+
+	uint16_t cnt = 0;
+
+	while (1) {
+		if (UART_STATUS & (1<<UART_RXREADY))
+    3cce:	80 91 c0 00 	lds	r24, 0x00C0
+    3cd2:	87 ff       	sbrs	r24, 7
+    3cd4:	04 c0       	rjmp	.+8      	; 0x3cde <main+0x58>
+			if (UART_DATA == START_WAIT_UARTCHAR)
+    3cd6:	80 91 c6 00 	lds	r24, 0x00C6
+    3cda:	83 35       	cpi	r24, 0x53	; 83
+    3cdc:	a1 f0       	breq	.+40     	; 0x3d06 <main+0x80>
+				break;
+
+		if (cnt++ >= WAIT_VALUE) {		// Если время ожидания вышло!
+    3cde:	80 e9       	ldi	r24, 0x90	; 144
+    3ce0:	e8 16       	cp	r14, r24
+    3ce2:	81 e0       	ldi	r24, 0x01	; 1
+    3ce4:	f8 06       	cpc	r15, r24
+    3ce6:	28 f0       	brcs	.+10     	; 0x3cf2 <main+0x6c>
+			BLPORT &= ~(1<<BLPNUM);	// установить все по умолчанию
+    3ce8:	2b 98       	cbi	0x05, 3	; 5
+
+			BIPORT &= ~(1<<BIPNUM);	// Выключить светодиод и установить вывод по умолчанию
+    3cea:	28 98       	cbi	0x05, 0	; 5
+			BIDDR  &= ~(1<<BIPNUM);
+    3cec:	20 98       	cbi	0x04, 0	; 4
+
+			jump_to_app();			// Перейти в секцию приложения
+    3cee:	f8 01       	movw	r30, r16
+    3cf0:	09 95       	icall
+	#else
+		//round up by default
+		__ticks_dc = (uint32_t)(ceil(fabs(__tmp)));
+	#endif
+
+	__builtin_avr_delay_cycles(__ticks_dc);
+    3cf2:	8f ef       	ldi	r24, 0xFF	; 255
+    3cf4:	9f e8       	ldi	r25, 0x8F	; 143
+    3cf6:	01 97       	sbiw	r24, 0x01	; 1
+    3cf8:	f1 f7       	brne	.-4      	; 0x3cf6 <main+0x70>
+    3cfa:	00 c0       	rjmp	.+0      	; 0x3cfc <main+0x76>
+    3cfc:	00 00       	nop
+    3cfe:	9f ef       	ldi	r25, 0xFF	; 255
+    3d00:	e9 1a       	sub	r14, r25
+    3d02:	f9 0a       	sbc	r15, r25
+    3d04:	e4 cf       	rjmp	.-56     	; 0x3cce <main+0x48>
+		}
+
+		_delay_ms(10);					// задержка для счетчика (400Х10мсек = 4 сек - ожидания после старта для входа в boot)
+	}
+	send_boot(); // Передать приглашение (если конечно надо)
+    3d06:	0e 94 2d 1e 	call	0x3c5a	; 0x3c5a <send_boot>
+static void (*jump_to_app)(void) = 0x0000;
+
+int main(void)
+{
+	uint16_t address = 0;
+	uint8_t device = 0, val;
+    3d0a:	81 2c       	mov	r8, r1
+
+static void (*jump_to_app)(void) = 0x0000;
+
+int main(void)
+{
+	uint16_t address = 0;
+    3d0c:	c1 2c       	mov	r12, r1
+    3d0e:	d1 2c       	mov	r13, r1
+
+		// если запрос - выйти из обновления
+		} 
+		else if (val == 'E') 
+		{
+		wdt_enable(EXIT_WDT_TIME); // активировать собачий таймер для перехода к аппаратному сбросу
+    3d10:	6c e0       	ldi	r22, 0x0C	; 12
+    3d12:	36 2e       	mov	r3, r22
+{
+	// стирание только основной программы (bootloader защищен (не стирается))
+	uint32_t addr = 0;
+	while (APP_END > addr) 
+		{
+		boot_page_erase(addr);		// Выполняет стирание страницы
+    3d14:	73 e0       	ldi	r23, 0x03	; 3
+    3d16:	67 2e       	mov	r6, r23
+		boot_spm_busy_wait();		// Ждать конца стирания страницы.
+		addr += SPM_PAGESIZE;		// перейти к следующей странице
+		}
+	boot_rww_enable();
+    3d18:	e1 e1       	ldi	r30, 0x11	; 17
+    3d1a:	7e 2e       	mov	r7, r30
+
+	do 
+		{
+		data = *tmp++;
+		data |= *tmp++ << 8;
+		boot_page_fill(baddr, data);	// вызов asm подпрограммы.
+    3d1c:	55 24       	eor	r5, r5
+    3d1e:	53 94       	inc	r5
+		baddr += 2;			// выбрать следующее слово в памяти
+		size -= 2;			// уменьшить указатель кол-ва байтов для записи
+		} 
+	while (size);				// выполнять пока все не будет записано
+
+	boot_page_write(pagestart);
+    3d20:	f5 e0       	ldi	r31, 0x05	; 5
+    3d22:	4f 2e       	mov	r4, r31
+#error "Select START_ condition for bootloader in main.c"
+#endif
+
+	for(;;)  // --- Работа загрузчика ---
+	{
+		val = recvchar();
+    3d24:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+		// если запрос - Autoincrement поддерживается?
+		if (val == 'a') 
+    3d28:	81 36       	cpi	r24, 0x61	; 97
+    3d2a:	11 f4       	brne	.+4      	; 0x3d30 <main+0xaa>
+		{
+			sendchar('Y');			// ответ - да, быстрый Autoincrement
+    3d2c:	89 e5       	ldi	r24, 0x59	; 89
+    3d2e:	25 c1       	rjmp	.+586    	; 0x3f7a <main+0x2f4>
+
+		// если запрос - запись адреса
+		} 
+		else if (val == 'A') 
+    3d30:	81 34       	cpi	r24, 0x41	; 65
+    3d32:	49 f4       	brne	.+18     	; 0x3d46 <main+0xc0>
+		{
+			address = recvchar();		//чтение старших 8 MSB адреса
+    3d34:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3d38:	90 e0       	ldi	r25, 0x00	; 0
+			address = (address<<8) | recvchar();
+    3d3a:	d8 2e       	mov	r13, r24
+    3d3c:	cc 24       	eor	r12, r12
+    3d3e:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3d42:	c8 2a       	or	r12, r24
+    3d44:	fe c0       	rjmp	.+508    	; 0x3f42 <main+0x2bc>
+			sendchar('\r');
+
+		// если запрос - поддержка буфера загрузки
+		} 
+		else if (val == 'b') 
+    3d46:	82 36       	cpi	r24, 0x62	; 98
+    3d48:	41 f4       	brne	.+16     	; 0x3d5a <main+0xd4>
+		{
+			sendchar('Y');					// ответ буфера - загрузка поддерживается
+    3d4a:	89 e5       	ldi	r24, 0x59	; 89
+    3d4c:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+			sendchar((sizeof(gBuffer) >> 8) & 0xFF);	// ответ буфера - размер в байтах
+    3d50:	80 e0       	ldi	r24, 0x00	; 0
+    3d52:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+			sendchar(sizeof(gBuffer) & 0xFF);
+    3d56:	80 e8       	ldi	r24, 0x80	; 128
+    3d58:	10 c1       	rjmp	.+544    	; 0x3f7a <main+0x2f4>
+
+		// если запрос - Старт загрузки буфера
+		} 
+		else if (val == 'B') 
+    3d5a:	82 34       	cpi	r24, 0x42	; 66
+    3d5c:	09 f0       	breq	.+2      	; 0x3d60 <main+0xda>
+    3d5e:	71 c0       	rjmp	.+226    	; 0x3e42 <main+0x1bc>
+		{
+			pagebuf_t size;
+			size = recvchar() << 8;			// загрузка старшего байта в buffersize
+    3d60:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+			size |= recvchar();				// загрузка младшего байта в buffersize
+    3d64:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3d68:	98 2e       	mov	r9, r24
+			val = recvchar();				// загрузка типа памяти ('E' или 'F')
+    3d6a:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3d6e:	98 2f       	mov	r25, r24
+    3d70:	00 e0       	ldi	r16, 0x00	; 0
+    3d72:	11 e0       	ldi	r17, 0x01	; 1
+static inline void recvBuffer(pagebuf_t size)
+{
+	pagebuf_t cnt;
+	uint8_t *tmp = gBuffer;
+
+	for (cnt = 0; cnt < sizeof(gBuffer); cnt++) 
+    3d74:	b1 2c       	mov	r11, r1
+		{
+		*tmp++ = (cnt < size) ? recvchar() : 0xFF;
+    3d76:	b9 14       	cp	r11, r9
+    3d78:	28 f4       	brcc	.+10     	; 0x3d84 <main+0xfe>
+    3d7a:	99 83       	std	Y+1, r25	; 0x01
+    3d7c:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3d80:	99 81       	ldd	r25, Y+1	; 0x01
+    3d82:	01 c0       	rjmp	.+2      	; 0x3d86 <main+0x100>
+    3d84:	8f ef       	ldi	r24, 0xFF	; 255
+    3d86:	f8 01       	movw	r30, r16
+    3d88:	81 93       	st	Z+, r24
+    3d8a:	8f 01       	movw	r16, r30
+static inline void recvBuffer(pagebuf_t size)
+{
+	pagebuf_t cnt;
+	uint8_t *tmp = gBuffer;
+
+	for (cnt = 0; cnt < sizeof(gBuffer); cnt++) 
+    3d8c:	b3 94       	inc	r11
+    3d8e:	f0 e8       	ldi	r31, 0x80	; 128
+    3d90:	bf 12       	cpse	r11, r31
+    3d92:	f1 cf       	rjmp	.-30     	; 0x3d76 <main+0xf0>
+			size = recvchar() << 8;			// загрузка старшего байта в buffersize
+			size |= recvchar();				// загрузка младшего байта в buffersize
+			val = recvchar();				// загрузка типа памяти ('E' или 'F')
+			recvBuffer(size);
+
+			if (device == DEVTYPE) 
+    3d94:	85 e7       	ldi	r24, 0x75	; 117
+    3d96:	88 12       	cpse	r8, r24
+    3d98:	c6 c0       	rjmp	.+396    	; 0x3f26 <main+0x2a0>
+			{
+				if (val == 'F') 			// если это память flash
+    3d9a:	96 34       	cpi	r25, 0x46	; 70
+    3d9c:	09 f0       	breq	.+2      	; 0x3da0 <main+0x11a>
+    3d9e:	34 c0       	rjmp	.+104    	; 0x3e08 <main+0x182>
+		}
+}
+
+static inline uint16_t writeFlashPage(uint16_t waddr, pagebuf_t size)
+{
+	uint32_t pagestart = (uint32_t)waddr<<1;
+    3da0:	86 01       	movw	r16, r12
+    3da2:	20 e0       	ldi	r18, 0x00	; 0
+    3da4:	30 e0       	ldi	r19, 0x00	; 0
+    3da6:	00 0f       	add	r16, r16
+    3da8:	11 1f       	adc	r17, r17
+    3daa:	22 1f       	adc	r18, r18
+    3dac:	33 1f       	adc	r19, r19
+	uint32_t baddr = pagestart;
+	uint16_t data;
+	uint8_t *tmp = gBuffer;
+    3dae:	a0 e0       	ldi	r26, 0x00	; 0
+    3db0:	b1 e0       	ldi	r27, 0x01	; 1
+    3db2:	80 91 00 01 	lds	r24, 0x0100
+}
+
+static inline uint16_t writeFlashPage(uint16_t waddr, pagebuf_t size)
+{
+	uint32_t pagestart = (uint32_t)waddr<<1;
+	uint32_t baddr = pagestart;
+    3db6:	b9 01       	movw	r22, r18
+    3db8:	a8 01       	movw	r20, r16
+    3dba:	90 0e       	add	r9, r16
+	uint8_t *tmp = gBuffer;
+
+	do 
+		{
+		data = *tmp++;
+		data |= *tmp++ << 8;
+    3dbc:	11 96       	adiw	r26, 0x01	; 1
+    3dbe:	ec 91       	ld	r30, X
+    3dc0:	11 97       	sbiw	r26, 0x01	; 1
+    3dc2:	90 e0       	ldi	r25, 0x00	; 0
+    3dc4:	9e 2b       	or	r25, r30
+		boot_page_fill(baddr, data);	// вызов asm подпрограммы.
+    3dc6:	fa 01       	movw	r30, r20
+    3dc8:	0c 01       	movw	r0, r24
+    3dca:	50 92 57 00 	sts	0x0057, r5
+    3dce:	e8 95       	spm
+    3dd0:	11 24       	eor	r1, r1
+
+		baddr += 2;			// выбрать следующее слово в памяти
+    3dd2:	4e 5f       	subi	r20, 0xFE	; 254
+    3dd4:	5f 4f       	sbci	r21, 0xFF	; 255
+    3dd6:	6f 4f       	sbci	r22, 0xFF	; 255
+    3dd8:	7f 4f       	sbci	r23, 0xFF	; 255
+		size -= 2;			// уменьшить указатель кол-ва байтов для записи
+		} 
+	while (size);				// выполнять пока все не будет записано
+    3dda:	94 16       	cp	r9, r20
+    3ddc:	29 f0       	breq	.+10     	; 0x3de8 <main+0x162>
+	uint8_t *tmp = gBuffer;
+
+	do 
+		{
+		data = *tmp++;
+		data |= *tmp++ << 8;
+    3dde:	12 96       	adiw	r26, 0x02	; 2
+    3de0:	8c 91       	ld	r24, X
+    3de2:	12 97       	sbiw	r26, 0x02	; 2
+    3de4:	12 96       	adiw	r26, 0x02	; 2
+    3de6:	ea cf       	rjmp	.-44     	; 0x3dbc <main+0x136>
+		baddr += 2;			// выбрать следующее слово в памяти
+		size -= 2;			// уменьшить указатель кол-ва байтов для записи
+		} 
+	while (size);				// выполнять пока все не будет записано
+
+	boot_page_write(pagestart);
+    3de8:	f8 01       	movw	r30, r16
+    3dea:	40 92 57 00 	sts	0x0057, r4
+    3dee:	e8 95       	spm
+	boot_spm_busy_wait();
+    3df0:	07 b6       	in	r0, 0x37	; 55
+    3df2:	00 fc       	sbrc	r0, 0
+    3df4:	fd cf       	rjmp	.-6      	; 0x3df0 <main+0x16a>
+	boot_rww_enable();		// перейти в RWW секцию
+    3df6:	70 92 57 00 	sts	0x0057, r7
+    3dfa:	e8 95       	spm
+
+	return baddr>>1;
+    3dfc:	76 95       	lsr	r23
+    3dfe:	67 95       	ror	r22
+    3e00:	57 95       	ror	r21
+    3e02:	47 95       	ror	r20
+    3e04:	6a 01       	movw	r12, r20
+    3e06:	9d c0       	rjmp	.+314    	; 0x3f42 <main+0x2bc>
+			{
+				if (val == 'F') 			// если это память flash
+				{
+				address = writeFlashPage(address, size);	// записать в Flash
+				} 
+				else if (val == 'E') 		// если это память eeprom
+    3e08:	95 34       	cpi	r25, 0x45	; 69
+    3e0a:	09 f0       	breq	.+2      	; 0x3e0e <main+0x188>
+    3e0c:	9a c0       	rjmp	.+308    	; 0x3f42 <main+0x2bc>
+    3e0e:	00 e0       	ldi	r16, 0x00	; 0
+    3e10:	11 e0       	ldi	r17, 0x01	; 1
+    3e12:	c6 01       	movw	r24, r12
+    3e14:	80 50       	subi	r24, 0x00	; 0
+    3e16:	91 40       	sbci	r25, 0x01	; 1
+    3e18:	5c 01       	movw	r10, r24
+    3e1a:	f8 01       	movw	r30, r16
+    3e1c:	e9 0d       	add	r30, r9
+    3e1e:	2e 2e       	mov	r2, r30
+    3e20:	c5 01       	movw	r24, r10
+    3e22:	80 0f       	add	r24, r16
+    3e24:	91 1f       	adc	r25, r17
+{
+	uint8_t *tmp = gBuffer;
+
+	do 
+		{
+		eeprom_write_byte( (uint8_t*)address, *tmp++ );
+    3e26:	f8 01       	movw	r30, r16
+    3e28:	61 91       	ld	r22, Z+
+    3e2a:	8f 01       	movw	r16, r30
+    3e2c:	0e 94 c8 1f 	call	0x3f90	; 0x3f90 <__eewr_byte_m168p>
+		address++;			// выбрать следующий байт
+		size--;				// уменьшить указатель кол-ва байтов для записи
+		}
+	while (size);				// выполнять пока все не будет записано
+    3e30:	20 12       	cpse	r2, r16
+    3e32:	f6 cf       	rjmp	.-20     	; 0x3e20 <main+0x19a>
+    3e34:	ff ef       	ldi	r31, 0xFF	; 255
+    3e36:	cf 1a       	sub	r12, r31
+    3e38:	df 0a       	sbc	r13, r31
+    3e3a:	9a 94       	dec	r9
+    3e3c:	c9 0c       	add	r12, r9
+    3e3e:	d1 1c       	adc	r13, r1
+    3e40:	80 c0       	rjmp	.+256    	; 0x3f42 <main+0x2bc>
+			sendchar(0);	// передать 0 байт
+			}
+
+		// если запрос - Чтение блока памяти
+		} 
+		else if (val == 'g') 
+    3e42:	87 36       	cpi	r24, 0x67	; 103
+    3e44:	09 f0       	breq	.+2      	; 0x3e48 <main+0x1c2>
+    3e46:	3e c0       	rjmp	.+124    	; 0x3ec4 <main+0x23e>
+		{
+			pagebuf_t size;
+			size = recvchar() << 8;			// загрузка старшего байта в buffersize
+    3e48:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+			size |= recvchar();				// загрузка младшего байта в buffersize
+    3e4c:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3e50:	b8 2e       	mov	r11, r24
+			val = recvchar();				// получить тип памяти ('E' или 'F')
+    3e52:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+
+			if (val == 'F') 				// если это память flash
+    3e56:	86 34       	cpi	r24, 0x46	; 70
+    3e58:	f9 f4       	brne	.+62     	; 0x3e98 <main+0x212>
+	return address;
+}
+
+static inline uint16_t readFlashPage(uint16_t waddr, pagebuf_t size)
+{
+	uint32_t baddr = (uint32_t)waddr<<1;
+    3e5a:	e1 2c       	mov	r14, r1
+    3e5c:	f1 2c       	mov	r15, r1
+    3e5e:	cc 0c       	add	r12, r12
+    3e60:	dd 1c       	adc	r13, r13
+    3e62:	ee 1c       	adc	r14, r14
+    3e64:	ff 1c       	adc	r15, r15
+    3e66:	bc 0c       	add	r11, r12
+#warning "Bootloader not read-protected"
+
+	#if defined(RAMPZ)
+		data = pgm_read_word_far(baddr);
+	#else
+		data = pgm_read_word_near(baddr);
+    3e68:	f6 01       	movw	r30, r12
+    3e6a:	05 91       	lpm	r16, Z+
+    3e6c:	14 91       	lpm	r17, Z
+		else 
+		{
+		data = 0xFFFF; // вставлять пустышки
+		}
+#endif
+		sendchar(data);				// передать младший байт LSB 
+    3e6e:	80 2f       	mov	r24, r16
+    3e70:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+		sendchar((data >> 8));		// передать старший байт MSB
+    3e74:	81 2f       	mov	r24, r17
+    3e76:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+		baddr += 2;					// выбрать следующее слово в памяти (2 байта)
+    3e7a:	82 e0       	ldi	r24, 0x02	; 2
+    3e7c:	c8 0e       	add	r12, r24
+    3e7e:	d1 1c       	adc	r13, r1
+    3e80:	e1 1c       	adc	r14, r1
+    3e82:	f1 1c       	adc	r15, r1
+		size -= 2;					// вычесть два байта из общего числа читаемых байт
+	} 
+	while (size);					// Повторять пока блок не будет прочитан
+    3e84:	bc 10       	cpse	r11, r12
+    3e86:	f0 cf       	rjmp	.-32     	; 0x3e68 <main+0x1e2>
+	return baddr>>1;
+    3e88:	b7 01       	movw	r22, r14
+    3e8a:	a6 01       	movw	r20, r12
+    3e8c:	76 95       	lsr	r23
+    3e8e:	67 95       	ror	r22
+    3e90:	57 95       	ror	r21
+    3e92:	47 95       	ror	r20
+    3e94:	6a 01       	movw	r12, r20
+    3e96:	46 cf       	rjmp	.-372    	; 0x3d24 <main+0x9e>
+
+			if (val == 'F') 				// если это память flash
+			{
+			address = readFlashPage(address, size);		// читать из Flash
+			} 
+			else if (val == 'E') 			// если это память eeprom
+    3e98:	85 34       	cpi	r24, 0x45	; 69
+    3e9a:	09 f0       	breq	.+2      	; 0x3e9e <main+0x218>
+    3e9c:	43 cf       	rjmp	.-378    	; 0x3d24 <main+0x9e>
+    3e9e:	86 01       	movw	r16, r12
+    3ea0:	ac 2c       	mov	r10, r12
+    3ea2:	ab 0c       	add	r10, r11
+
+static inline uint16_t readEEpromPage(uint16_t address, pagebuf_t size)
+{
+	do 
+	{
+	sendchar( eeprom_read_byte( (uint8_t*)address ) );
+    3ea4:	c8 01       	movw	r24, r16
+    3ea6:	0e 94 c0 1f 	call	0x3f80	; 0x3f80 <__eerd_byte_m168p>
+    3eaa:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+	address++;
+    3eae:	0f 5f       	subi	r16, 0xFF	; 255
+    3eb0:	1f 4f       	sbci	r17, 0xFF	; 255
+	size--;						// уменьшить кол-во считываемых байт
+	} 
+	while (size);				// Повторять пока блок не будет прочитан
+    3eb2:	a0 12       	cpse	r10, r16
+    3eb4:	f7 cf       	rjmp	.-18     	; 0x3ea4 <main+0x21e>
+    3eb6:	9f ef       	ldi	r25, 0xFF	; 255
+    3eb8:	c9 1a       	sub	r12, r25
+    3eba:	d9 0a       	sbc	r13, r25
+    3ebc:	ba 94       	dec	r11
+    3ebe:	cb 0c       	add	r12, r11
+    3ec0:	d1 1c       	adc	r13, r1
+    3ec2:	30 cf       	rjmp	.-416    	; 0x3d24 <main+0x9e>
+			address = readEEpromPage(address, size);	// читать из EEPROM
+			}
+
+		// если запрос - Стереть чип
+ 		} 
+		else if (val == 'e') 
+    3ec4:	85 36       	cpi	r24, 0x65	; 101
+    3ec6:	a9 f4       	brne	.+42     	; 0x3ef2 <main+0x26c>
+		{
+		if (device == DEVTYPE) 
+    3ec8:	e5 e7       	ldi	r30, 0x75	; 117
+    3eca:	8e 12       	cpse	r8, r30
+    3ecc:	3a c0       	rjmp	.+116    	; 0x3f42 <main+0x2bc>
+    3ece:	e0 e0       	ldi	r30, 0x00	; 0
+    3ed0:	f0 e0       	ldi	r31, 0x00	; 0
+{
+	// стирание только основной программы (bootloader защищен (не стирается))
+	uint32_t addr = 0;
+	while (APP_END > addr) 
+		{
+		boot_page_erase(addr);		// Выполняет стирание страницы
+    3ed2:	60 92 57 00 	sts	0x0057, r6
+    3ed6:	e8 95       	spm
+		boot_spm_busy_wait();		// Ждать конца стирания страницы.
+    3ed8:	07 b6       	in	r0, 0x37	; 55
+    3eda:	00 fc       	sbrc	r0, 0
+    3edc:	fd cf       	rjmp	.-6      	; 0x3ed8 <main+0x252>
+    3ede:	e0 58       	subi	r30, 0x80	; 128
+    3ee0:	ff 4f       	sbci	r31, 0xFF	; 255
+
+static inline void eraseFlash(void)
+{
+	// стирание только основной программы (bootloader защищен (не стирается))
+	uint32_t addr = 0;
+	while (APP_END > addr) 
+    3ee2:	e1 15       	cp	r30, r1
+    3ee4:	8c e3       	ldi	r24, 0x3C	; 60
+    3ee6:	f8 07       	cpc	r31, r24
+    3ee8:	a1 f7       	brne	.-24     	; 0x3ed2 <main+0x24c>
+		{
+		boot_page_erase(addr);		// Выполняет стирание страницы
+		boot_spm_busy_wait();		// Ждать конца стирания страницы.
+		addr += SPM_PAGESIZE;		// перейти к следующей странице
+		}
+	boot_rww_enable();
+    3eea:	70 92 57 00 	sts	0x0057, r7
+    3eee:	e8 95       	spm
+    3ef0:	28 c0       	rjmp	.+80     	; 0x3f42 <main+0x2bc>
+			}
+		sendchar('\r');
+
+		// если запрос - выйти из обновления
+		} 
+		else if (val == 'E') 
+    3ef2:	85 34       	cpi	r24, 0x45	; 69
+    3ef4:	59 f4       	brne	.+22     	; 0x3f0c <main+0x286>
+		{
+		wdt_enable(EXIT_WDT_TIME); // активировать собачий таймер для перехода к аппаратному сбросу
+    3ef6:	e8 e1       	ldi	r30, 0x18	; 24
+    3ef8:	f0 e0       	ldi	r31, 0x00	; 0
+    3efa:	0f b6       	in	r0, 0x3f	; 63
+    3efc:	f8 94       	cli
+    3efe:	a8 95       	wdr
+    3f00:	e0 93 60 00 	sts	0x0060, r30
+    3f04:	0f be       	out	0x3f, r0	; 63
+    3f06:	30 92 60 00 	sts	0x0060, r3
+    3f0a:	1b c0       	rjmp	.+54     	; 0x3f42 <main+0x2bc>
+		sendchar('\r');				// передать символ
+
+		//если запрос - Войти в режим программирования
+		} 
+		else if (val == 'P') 
+    3f0c:	80 35       	cpi	r24, 0x50	; 80
+    3f0e:	c9 f0       	breq	.+50     	; 0x3f42 <main+0x2bc>
+		{
+		sendchar('\r');
+
+		//если запрос - выйти из режима программирования
+		} 
+		else if (val == 'L') 
+    3f10:	8c 34       	cpi	r24, 0x4C	; 76
+    3f12:	b9 f0       	breq	.+46     	; 0x3f42 <main+0x2bc>
+		{
+		sendchar('\r');
+		//если запрос - типа программатора
+		} 
+		else if (val == 'p') 
+    3f14:	80 37       	cpi	r24, 0x70	; 112
+    3f16:	11 f4       	brne	.+4      	; 0x3f1c <main+0x296>
+		{
+		sendchar('S');		// всегда - serial программатор
+    3f18:	83 e5       	ldi	r24, 0x53	; 83
+    3f1a:	2f c0       	rjmp	.+94     	; 0x3f7a <main+0x2f4>
+
+		//если запрос - тип устройства
+		} 
+		else if (val == 't') 
+    3f1c:	84 37       	cpi	r24, 0x74	; 116
+    3f1e:	29 f4       	brne	.+10     	; 0x3f2a <main+0x2a4>
+		{
+		sendchar(DEVTYPE);		// передать тип уст-ва (Part-Code Boot (0x73))
+    3f20:	85 e7       	ldi	r24, 0x75	; 117
+    3f22:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+		sendchar(0);
+    3f26:	80 e0       	ldi	r24, 0x00	; 0
+    3f28:	28 c0       	rjmp	.+80     	; 0x3f7a <main+0x2f4>
+		// clear and set LED ignored
+		} 
+		else if ((val == 'x') || (val == 'y')) 
+    3f2a:	98 e8       	ldi	r25, 0x88	; 136
+    3f2c:	98 0f       	add	r25, r24
+    3f2e:	92 30       	cpi	r25, 0x02	; 2
+    3f30:	18 f4       	brcc	.+6      	; 0x3f38 <main+0x2b2>
+		{
+		recvchar();
+    3f32:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3f36:	05 c0       	rjmp	.+10     	; 0x3f42 <main+0x2bc>
+		sendchar('\r');
+
+		// set device
+		} 
+		else if (val == 'T') 
+    3f38:	84 35       	cpi	r24, 0x54	; 84
+    3f3a:	29 f4       	brne	.+10     	; 0x3f46 <main+0x2c0>
+		{
+		device = recvchar();
+    3f3c:	0e 94 14 1e 	call	0x3c28	; 0x3c28 <recvchar>
+    3f40:	88 2e       	mov	r8, r24
+		sendchar('\r');
+    3f42:	8d e0       	ldi	r24, 0x0D	; 13
+    3f44:	1a c0       	rjmp	.+52     	; 0x3f7a <main+0x2f4>
+		// если запрос - вернуть software identifier
+		} 
+		else if (val == 'S') 
+    3f46:	83 35       	cpi	r24, 0x53	; 83
+    3f48:	19 f4       	brne	.+6      	; 0x3f50 <main+0x2ca>
+		{
+		send_boot();
+    3f4a:	0e 94 2d 1e 	call	0x3c5a	; 0x3c5a <send_boot>
+    3f4e:	ea ce       	rjmp	.-556    	; 0x3d24 <main+0x9e>
+
+		//если запрос - Software Version
+		} 
+		else if (val == 'V') {
+    3f50:	86 35       	cpi	r24, 0x56	; 86
+    3f52:	29 f4       	brne	.+10     	; 0x3f5e <main+0x2d8>
+		sendchar(VERSION_HIGH);
+    3f54:	80 e3       	ldi	r24, 0x30	; 48
+    3f56:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+		sendchar(VERSION_LOW);
+    3f5a:	88 e3       	ldi	r24, 0x38	; 56
+    3f5c:	0e c0       	rjmp	.+28     	; 0x3f7a <main+0x2f4>
+		// возвращаем несколько байт (т.к.
+		// AVRProg программа ожидает "Atmel-byte" 0x1E последним байтом
+		// эти байты показываются в диалоговом окне window приложения)
+		// В общем для совместимости!
+		} 
+		else if (val == 's') 
+    3f5e:	83 37       	cpi	r24, 0x73	; 115
+    3f60:	41 f4       	brne	.+16     	; 0x3f72 <main+0x2ec>
+		{
+		sendchar(SIG_BYTE3);
+    3f62:	86 e0       	ldi	r24, 0x06	; 6
+    3f64:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+		sendchar(SIG_BYTE2);
+    3f68:	84 e9       	ldi	r24, 0x94	; 148
+    3f6a:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+		sendchar(SIG_BYTE1);
+    3f6e:	8e e1       	ldi	r24, 0x1E	; 30
+    3f70:	04 c0       	rjmp	.+8      	; 0x3f7a <main+0x2f4>
+
+		/* ESC */
+		} 
+		else if(val != 0x1b) 
+    3f72:	8b 31       	cpi	r24, 0x1B	; 27
+    3f74:	09 f4       	brne	.+2      	; 0x3f78 <main+0x2f2>
+    3f76:	d6 ce       	rjmp	.-596    	; 0x3d24 <main+0x9e>
+		{
+		sendchar('?');
+    3f78:	8f e3       	ldi	r24, 0x3F	; 63
+    3f7a:	0e 94 1b 1e 	call	0x3c36	; 0x3c36 <sendchar>
+    3f7e:	d2 ce       	rjmp	.-604    	; 0x3d24 <main+0x9e>
+
+00003f80 <__eerd_byte_m168p>:
+    3f80:	f9 99       	sbic	0x1f, 1	; 31
+    3f82:	fe cf       	rjmp	.-4      	; 0x3f80 <__eerd_byte_m168p>
+    3f84:	92 bd       	out	0x22, r25	; 34
+    3f86:	81 bd       	out	0x21, r24	; 33
+    3f88:	f8 9a       	sbi	0x1f, 0	; 31
+    3f8a:	99 27       	eor	r25, r25
+    3f8c:	80 b5       	in	r24, 0x20	; 32
+    3f8e:	08 95       	ret
+
+00003f90 <__eewr_byte_m168p>:
+    3f90:	26 2f       	mov	r18, r22
+
+00003f92 <__eewr_r18_m168p>:
+    3f92:	f9 99       	sbic	0x1f, 1	; 31
+    3f94:	fe cf       	rjmp	.-4      	; 0x3f92 <__eewr_r18_m168p>
+    3f96:	1f ba       	out	0x1f, r1	; 31
+    3f98:	92 bd       	out	0x22, r25	; 34
+    3f9a:	81 bd       	out	0x21, r24	; 33
+    3f9c:	20 bd       	out	0x20, r18	; 32
+    3f9e:	0f b6       	in	r0, 0x3f	; 63
+    3fa0:	f8 94       	cli
+    3fa2:	fa 9a       	sbi	0x1f, 2	; 31
+    3fa4:	f9 9a       	sbi	0x1f, 1	; 31
+    3fa6:	0f be       	out	0x3f, r0	; 63
+    3fa8:	01 96       	adiw	r24, 0x01	; 1
+    3faa:	08 95       	ret
+
+00003fac <_exit>:
+    3fac:	f8 94       	cli
+
+00003fae <__stop_program>:
+    3fae:	ff cf       	rjmp	.-2      	; 0x3fae <__stop_program>
